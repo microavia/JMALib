@@ -7,19 +7,19 @@ import java.nio.ByteBuffer;
 /**
  * Created by ton on 26.10.15.
  */
-class Field extends Type {
+class FieldParser extends AbstractParser {
     public final String type;
     protected int offset = 0;
     private ValueParser valueParser;
 
-    public Field(LogParserContext context, String type, ValueParser parser, int size) {
+    public FieldParser(LogParserContext context, String type, ValueParser parser, int size) {
         super(context);
         this.type = type;
         this.valueParser = parser;
         this.size = size;
     }
 
-    public static Field create(LogParserContext context, String typeString) {
+    public static FieldParser create(LogParserContext context, String typeString) {
         ValueParser valueParser;
         int size;
         switch (typeString) {
@@ -71,10 +71,10 @@ class Field extends Type {
             default:
                 return null;
         }
-        return new Field(context, typeString, valueParser, size);
+        return new FieldParser(context, typeString, valueParser, size);
     }
 
-    public static Field create(LogParserContext context, String typeString, int size) {
+    public static FieldParser create(LogParserContext context, String typeString, int size) {
         ValueParser valueParser;
         switch (typeString) {
             case "char": {
@@ -97,12 +97,12 @@ class Field extends Type {
             default:
                 return null;
         }
-        return new Field(context, typeString + "[]", valueParser, size);
+        return new FieldParser(context, typeString + "[]", valueParser, size);
     }
 
     @Override
-    public Type clone() {
-        return new Field(context, type, valueParser, size);
+    public AbstractParser clone() {
+        return new FieldParser(context, type, valueParser, size);
     }
 
     @Override

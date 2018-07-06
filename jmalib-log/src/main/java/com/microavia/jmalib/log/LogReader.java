@@ -3,6 +3,7 @@ package com.microavia.jmalib.log;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * User: ton Date: 03.06.13 Time: 17:45
@@ -33,7 +34,17 @@ public interface LogReader {
      */
     void removeAllSubscriptions();
 
+    /**
+     * Read update, i.e. series of data messages until at least one of the subscriptions will be updated.
+     * @return timestamp of last update
+     * @throws IOException
+     */
     long readUpdate() throws IOException;
+
+    /**
+     * Get set of updated subscriptions, overwrited on each call of readUpdate().
+     */
+    public Set<Subscription> getUpdatedSubscriptions();
 
     /**
      * Get map of field - format.

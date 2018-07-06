@@ -2,37 +2,37 @@ package com.microavia.jmalib.log.ulog;
 
 import java.nio.ByteBuffer;
 
-public class Array extends Type {
+public class ArrayParser extends AbstractParser {
     private final LogParserContext context;
-    private final Type[] items;
+    private final AbstractParser[] items;
 
-    public Array(LogParserContext context, Type itemType, int arraySize) {
+    public ArrayParser(LogParserContext context, AbstractParser itemType, int arraySize) {
         super(context);
         this.context = context;
         this.size = itemType.size() * arraySize;
-        this.items = new Type[arraySize];
+        this.items = new AbstractParser[arraySize];
         for (int i = 0; i < arraySize; i++) {
             this.items[i] = itemType.clone();
         }
         setOffset(0);
     }
 
-    public Type[] getItems() {
+    public AbstractParser[] getItems() {
         return items;
     }
 
-    public Type get(int idx) {
+    public AbstractParser get(int idx) {
         return items[idx];
     }
 
     @Override
-    public Type clone() {
-        return new Array(context, items[0], items.length);
+    public AbstractParser clone() {
+        return new ArrayParser(context, items[0], items.length);
     }
 
     @Override
     public void setOffset(int offset) {
-        for (Type item : items) {
+        for (AbstractParser item : items) {
             item.setOffset(offset);
             offset += item.size();
         }
