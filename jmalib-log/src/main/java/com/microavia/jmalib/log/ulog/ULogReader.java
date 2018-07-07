@@ -304,6 +304,7 @@ public class ULogReader extends BinaryLogReader {
                         }
                         context.getStructs().put(name, struct);
                         topicByName.put(name, new Topic(name, struct, msgId));
+                        addFieldsToList(name, struct);
                     }
                 } else {
                     String[] descr = getString(buffer, msgSize).split(":");
