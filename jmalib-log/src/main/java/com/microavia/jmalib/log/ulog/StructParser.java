@@ -1,5 +1,7 @@
 package com.microavia.jmalib.log.ulog;
 
+import com.microavia.jmalib.log.FormatErrorException;
+
 import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,7 +15,7 @@ class StructParser extends AbstractParser {
         setOffset(0);
     }
 
-    StructParser(LogParserContext context, String formatStr) {
+    StructParser(LogParserContext context, String formatStr) throws FormatErrorException {
         super(context);
         if (formatStr.length() > 1) {
             String[] fieldDescrs = formatStr.split(";");

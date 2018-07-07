@@ -15,8 +15,8 @@ import java.util.*;
  */
 public class ULogReader extends BinaryLogReader {
     private static final byte SYNC_BYTE = (byte) '>';
-    private static final byte MESSAGE_TYPE_FORMAT = (byte) 'F';
-    private static final byte MESSAGE_TYPE_ADD = (byte) 'A';
+    private static final byte MESSAGE_TYPE_STRUCT = (byte) 'F';
+    private static final byte MESSAGE_TYPE_TOPIC = (byte) 'A';
     private static final byte MESSAGE_TYPE_DATA = (byte) 'D';
     private static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     private static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
@@ -31,13 +31,14 @@ public class ULogReader extends BinaryLogReader {
     private long sizeUpdates = -1;
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
-    private long timeLast = -1;
+    private long timeLast = Long.MIN_VALUE;
     private long utcTimeReference = -1;
     private Map<String, Object> version = new HashMap<>();
     private Map<String, Object> parameters = new HashMap<>();
     private List<Exception> errors = new ArrayList<>();
     private int logVersion = 0;
     private int headerSize = 4;
+    private int msgDataTimestampOffset = 3;
     private LogParserContext context = new LogParserContext();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
@@ -46,8 +47,9 @@ public class ULogReader extends BinaryLogReader {
     }
 
     public static void main(String[] args) throws Exception {
-        ULogReader reader = new ULogReader("test.ulg");
+        ULogReader reader = new ULogReader("test_long_v1.ulg");
         reader.addSubscription("ATTITUDE_POSITION.alt_baro");
+        reader.seek(0);
         long tStart = System.currentTimeMillis();
         try {
             while (true) {
@@ -120,13 +122,18 @@ public class ULogReader extends BinaryLogReader {
         if (logVersionStr.startsWith("ULG")) {
             logVersion = Integer.parseInt(logVersionStr.substring(3));
             headerSize = 4;
+            if (logVersion >= 2) {
+                msgDataTimestampOffset = 3;
+            } else {
+                msgDataTimestampOffset = 2;
+            }
         } else {
             throw new FormatErrorException("Unsupported file format");
         }
         startMicroseconds = -1;
-        timeLast = -1;
         sizeUpdates = 0;
         fieldsList = new HashMap<>();
+        timeLast = Long.MIN_VALUE;
         try {
             while (true) {
                 readMessage(this::handleHeaderMessage);
@@ -189,9 +196,10 @@ public class ULogReader extends BinaryLogReader {
     @Override
     public long readUpdate() throws IOException {
         updatedSubscriptions.clear();
+        timeLast = Long.MIN_VALUE;
         do {
             readMessage(this::handleDataMessage);
-        } while (timeLast < 0);
+        } while (timeLast == Long.MIN_VALUE);
         return timeLast;
     }
 
@@ -203,6 +211,7 @@ public class ULogReader extends BinaryLogReader {
     @Override
     public boolean seek(long seekTime) throws IOException {
         position(dataStart);
+        timeLast = Long.MIN_VALUE;
         if (seekTime == 0) {      // Seek to start of log
             return true;
         }
@@ -211,9 +220,11 @@ public class ULogReader extends BinaryLogReader {
             while (timeLast < seekTime) {
                 readMessage((pos, msgType, msgSize) -> {
                     if (msgType == MESSAGE_TYPE_DATA) {
-                        timeLast = buffer.getLong(buffer.position() + 3);
+                        timeLast = buffer.getLong(buffer.position() + msgDataTimestampOffset);
                         if (timeLast >= seekTime) {
-                            return; // Dont consume message with timestamp > seekTime
+                            // Time found, reset buffer to start of the message
+                            position(pos);
+                            return;
                         }
                     }
                     buffer.position(buffer.position() + msgSize);
@@ -268,7 +279,7 @@ public class ULogReader extends BinaryLogReader {
                 if (dataStart == 0) {
                     dataStart = pos;
                 }
-                long timestamp = buffer.getLong(buffer.position() + 2);
+                long timestamp = buffer.getLong(buffer.position() + msgDataTimestampOffset);
                 if (startMicroseconds < 0) {
                     startMicroseconds = timestamp;
                 }
@@ -277,22 +288,44 @@ public class ULogReader extends BinaryLogReader {
                 buffer.position(buffer.position() + msgSize);
                 break;
             }
-            case MESSAGE_TYPE_FORMAT: {
-                String[] descr = getString(buffer, msgSize).split(":");
-                String name = descr[0];
-                if (descr.length > 1) {
-                    StructParser struct = new StructParser(context, descr[1]);
-                    System.out.printf("STRUCT %s: %s\n", name, struct);
-                    context.getStructs().put(name, struct);
+            case MESSAGE_TYPE_STRUCT: {
+                if (logVersion <= 1) {
+                    int msgId = buffer.get() & 0xFF;
+                    int formatLen = buffer.getShort() & 0xFFFF;
+                    String[] descr = getString(buffer, formatLen).split(":");
+                    String name = descr[0];
+                    if (descr.length > 1) {
+                        StructParser struct = null;
+                        try {
+                            struct = new StructParser(context, descr[1]);
+                        } catch (FormatErrorException e) {
+                            errors.add(new FormatErrorException(pos, "Error parsing type definition", e));
+                            break;
+                        }
+                        context.getStructs().put(name, struct);
+                        topicByName.put(name, new Topic(name, struct, msgId));
+                    }
+                } else {
+                    String[] descr = getString(buffer, msgSize).split(":");
+                    String name = descr[0];
+                    if (descr.length > 1) {
+                        StructParser struct = null;
+                        try {
+                            struct = new StructParser(context, descr[1]);
+                        } catch (Exception e) {
+                            errors.add(new FormatErrorException(pos, "Error parsing struct", e));
+                            break;
+                        }
+                        context.getStructs().put(name, struct);
+                    }
                 }
                 break;
             }
-            case MESSAGE_TYPE_ADD: {
+            case MESSAGE_TYPE_TOPIC: {
                 int msgId = buffer.getShort() & 0xFFFF;
                 String[] descr = getString(buffer, msgSize - 2).split(":");
                 String name = descr[0];
                 String structName = descr[1];
-                System.out.printf("ADD: %s:%s\n", name, structName);
                 StructParser struct = context.getStructs().get(structName);
                 Topic topic = new Topic(name, struct, msgId);
                 topicByName.put(name, topic);
@@ -303,7 +336,13 @@ public class ULogReader extends BinaryLogReader {
                 int keyLen = buffer.get() & 0xFF;
                 String[] keyDescr = getString(buffer, keyLen).split(" ");
                 String key = keyDescr[1];
-                AbstractParser field = AbstractParser.createFromFormatString(context, keyDescr[0]);
+                AbstractParser field = null;
+                try {
+                    field = AbstractParser.createFromFormatString(context, keyDescr[0]);
+                } catch (FormatErrorException e) {
+                    errors.add(new FormatErrorException(pos, "Error parsing info", e));
+                    break;
+                }
                 Object value = field.parse(buffer);
                 buffer.position(buffer.position() + field.size());
                 switch (key) {
@@ -329,7 +368,13 @@ public class ULogReader extends BinaryLogReader {
                 int keyLen = buffer.get() & 0xFF;
                 String[] keyDescr = getString(buffer, keyLen).split(" ");
                 String key = keyDescr[1];
-                AbstractParser field = AbstractParser.createFromFormatString(context, keyDescr[0]);
+                AbstractParser field = null;
+                try {
+                    field = AbstractParser.createFromFormatString(context, keyDescr[0]);
+                } catch (FormatErrorException e) {
+                    errors.add(new FormatErrorException(pos, "Error parsing parameter", e));
+                    break;
+                }
                 Object value = field.parse(buffer);
                 buffer.position(buffer.position() + field.size());
                 parameters.put(key, value);
@@ -367,9 +412,8 @@ public class ULogReader extends BinaryLogReader {
 
     private void handleDataMessage(long pos, int msgType, int msgSize) {
         int bp = buffer.position();
-        timeLast = -1;
         if (msgType == MESSAGE_TYPE_DATA) {
-            int msgId = buffer.getShort() & 0xFFFF;
+            int msgId = logVersion >= 2 ? (buffer.getShort() & 0xFFFF) : (buffer.get() & 0xFF);
             List<Subscription> subs = subscriptions.get(msgId);
             if (subs != null) {
                 int multiId = buffer.get() & 0xFF;

@@ -10,6 +10,7 @@
     <version>0.1.0-SNAPSHOT</version>
     <modules>
         <module>jmalib-log</module>
+        <module>jmalib-math</module>
     </modules>
 
     <build>

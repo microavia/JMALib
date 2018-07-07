@@ -1,5 +1,6 @@
 package com.microavia.jmalib.log.ulog;
 
+import com.microavia.jmalib.log.FormatErrorException;
 import com.microavia.jmalib.log.ValueParser;
 
 abstract class AbstractParser implements ValueParser {
@@ -10,7 +11,7 @@ abstract class AbstractParser implements ValueParser {
         this.context = context;
     }
 
-    private static AbstractParser createFromTypeString(LogParserContext context, String typeString) {
+    private static AbstractParser createFromTypeString(LogParserContext context, String typeString) throws FormatErrorException {
         FieldParser field = FieldParser.create(context, typeString);
         if (field != null) {
             return field;
@@ -19,10 +20,10 @@ abstract class AbstractParser implements ValueParser {
         if (struct != null) {
             return struct.clone();
         }
-        throw new RuntimeException("Unsupported type: " + typeString);
+        throw new FormatErrorException("Unsupported type: " + typeString);
     }
 
-    static AbstractParser createFromFormatString(LogParserContext context, String formatStr) {
+    static AbstractParser createFromFormatString(LogParserContext context, String formatStr) throws FormatErrorException {
         if (formatStr.contains("[")) {
             // Array
             String[] q = formatStr.split("\\[");
