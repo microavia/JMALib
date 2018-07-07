@@ -2,15 +2,15 @@ package com.microavia.jmalib.log.ulog;
 
 import com.microavia.jmalib.log.ValueParser;
 
-public abstract class AbstractParser implements ValueParser {
-    protected final LogParserContext context;
-    protected int size = 0;
+abstract class AbstractParser implements ValueParser {
+    final LogParserContext context;
+    int size = 0;
 
-    public AbstractParser(LogParserContext context) {
+    AbstractParser(LogParserContext context) {
         this.context = context;
     }
 
-    public static AbstractParser createFromTypeString(LogParserContext context, String typeString) {
+    private static AbstractParser createFromTypeString(LogParserContext context, String typeString) {
         FieldParser field = FieldParser.create(context, typeString);
         if (field != null) {
             return field;
@@ -22,12 +22,12 @@ public abstract class AbstractParser implements ValueParser {
         throw new RuntimeException("Unsupported type: " + typeString);
     }
 
-    public static AbstractParser createFromFormatString(LogParserContext context, String formatStr) {
+    static AbstractParser createFromFormatString(LogParserContext context, String formatStr) {
         if (formatStr.contains("[")) {
             // Array
             String[] q = formatStr.split("\\[");
             String typeString = q[0];
-            int arraySize = Integer.parseInt(q[1].split("\\]")[0]);
+            int arraySize = Integer.parseInt(q[1].split("]")[0]);
             if (typeString.equals("char") || typeString.equals("byte")) {
                 // Array that parsed as field
                 return FieldParser.create(context, typeString, arraySize);
@@ -42,7 +42,7 @@ public abstract class AbstractParser implements ValueParser {
 
     abstract public AbstractParser clone();
 
-    public int size() {
+    int size() {
         return size;
     }
 

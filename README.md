@@ -2,7 +2,7 @@
 MicroAvia Java libraries.
 
 #### Modules List
- - jmavlib-log: MicroAvia logs parsing (MicroAvia ULog v2)
+ - jmalib-log: MicroAvia logs parsing (MicroAvia ULog v2)
 
 Based on deprecated [jMAVlib](https://github.com/DrTon/jMAVlib) project with some major improvements. Added Maven support.
 

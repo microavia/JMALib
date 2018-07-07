@@ -8,18 +8,18 @@ import java.nio.ByteBuffer;
  * Created by ton on 26.10.15.
  */
 class FieldParser extends AbstractParser {
-    public final String type;
-    protected int offset = 0;
+    private final String type;
+    private int offset = 0;
     private ValueParser valueParser;
 
-    public FieldParser(LogParserContext context, String type, ValueParser parser, int size) {
+    private FieldParser(LogParserContext context, String type, ValueParser parser, int size) {
         super(context);
         this.type = type;
         this.valueParser = parser;
         this.size = size;
     }
 
-    public static FieldParser create(LogParserContext context, String typeString) {
+    static FieldParser create(LogParserContext context, String typeString) {
         ValueParser valueParser;
         int size;
         switch (typeString) {
@@ -74,7 +74,7 @@ class FieldParser extends AbstractParser {
         return new FieldParser(context, typeString, valueParser, size);
     }
 
-    public static FieldParser create(LogParserContext context, String typeString, int size) {
+    static FieldParser create(LogParserContext context, String typeString, int size) {
         ValueParser valueParser;
         switch (typeString) {
             case "char": {
@@ -98,6 +98,10 @@ class FieldParser extends AbstractParser {
                 return null;
         }
         return new FieldParser(context, typeString + "[]", valueParser, size);
+    }
+
+    String getType() {
+        return type;
     }
 
     @Override

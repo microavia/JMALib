@@ -4,22 +4,21 @@ import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class StructParser extends AbstractParser {
-    public final LinkedHashMap<String, AbstractParser> fields;
+class StructParser extends AbstractParser {
+    private final LinkedHashMap<String, AbstractParser> fields;
 
-    public StructParser(LogParserContext context, LinkedHashMap<String, AbstractParser> fields) {
+    private StructParser(LogParserContext context, LinkedHashMap<String, AbstractParser> fields) {
         super(context);
         this.fields = fields;
         setOffset(0);
     }
 
-    public StructParser(LogParserContext context, String formatStr) {
+    StructParser(LogParserContext context, String formatStr) {
         super(context);
         if (formatStr.length() > 1) {
             String[] fieldDescrs = formatStr.split(";");
             fields = new LinkedHashMap<>(fieldDescrs.length);
-            for (int i = 0; i < fieldDescrs.length; i++) {
-                String fieldDescr = fieldDescrs[i];
+            for (String fieldDescr : fieldDescrs) {
                 String[] p = fieldDescr.split(" ");
                 String name = p[1];
                 AbstractParser field = AbstractParser.createFromFormatString(context, p[0]);
@@ -32,11 +31,11 @@ public class StructParser extends AbstractParser {
         setOffset(0);
     }
 
-    public LinkedHashMap<String, AbstractParser> getFields() {
+    LinkedHashMap<String, AbstractParser> getFields() {
         return fields;
     }
 
-    public AbstractParser get(String key) {
+    AbstractParser get(String key) {
         return fields.get(key);
     }
 

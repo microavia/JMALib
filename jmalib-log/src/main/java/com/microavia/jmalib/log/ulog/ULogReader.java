@@ -24,8 +24,7 @@ public class ULogReader extends BinaryLogReader {
     private String systemName = "";
     private String systemConfig = "";
     private long dataStart = 0;
-    private Map<Integer, Message> messagesById = new HashMap<>();
-    private Map<String, Message> messagesByName = new HashMap<>();
+    private Map<String, Topic> topicByName = new HashMap<>();
     private Map<String, String> fieldsList = null;
     private Map<Integer, List<Subscription>> subscriptions = new HashMap<>();
     private Set<Subscription> updatedSubscriptions = new HashSet<>();
@@ -38,7 +37,7 @@ public class ULogReader extends BinaryLogReader {
     private Map<String, Object> parameters = new HashMap<>();
     private List<Exception> errors = new ArrayList<>();
     private int logVersion = 0;
-    private int headerSize = 2;
+    private int headerSize = 4;
     private LogParserContext context = new LogParserContext();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
@@ -53,7 +52,7 @@ public class ULogReader extends BinaryLogReader {
         try {
             while (true) {
                 long t = reader.readUpdate();
-                for (Subscription s : reader.updatedSubscriptions) {
+                for (Subscription s : reader.getUpdatedSubscriptions()) {
                     System.out.println(t + " " + s.getPath() + " " + s.getValue());
                 }
             }
@@ -122,7 +121,7 @@ public class ULogReader extends BinaryLogReader {
             logVersion = Integer.parseInt(logVersionStr.substring(3));
             headerSize = 4;
         } else {
-            throw new FormatErrorException("Unknown header");
+            throw new FormatErrorException("Unsupported file format");
         }
         startMicroseconds = -1;
         timeLast = -1;
@@ -140,7 +139,7 @@ public class ULogReader extends BinaryLogReader {
 
     public Subscription addSubscription(String path) {
         String[] parts = path.split("\\.");
-        Message msg = null;
+        Topic msg = null;
         int multiIdFilter = -1;
         AbstractParser parser = null;
         for (String p : parts) {
@@ -149,7 +148,7 @@ public class ULogReader extends BinaryLogReader {
                 if (pp.length > 1) {
                     multiIdFilter = Integer.parseInt(pp[1].split("]")[0]);
                 }
-                msg = messagesByName.get(pp[0]);
+                msg = topicByName.get(pp[0]);
                 parser = msg.getStruct();
             } else {
                 if (parser instanceof StructParser) {
@@ -202,7 +201,7 @@ public class ULogReader extends BinaryLogReader {
     }
 
     @Override
-    public boolean seek(long seekTime) throws IOException, FormatErrorException {
+    public boolean seek(long seekTime) throws IOException {
         position(dataStart);
         if (seekTime == 0) {      // Seek to start of log
             return true;
@@ -232,13 +231,12 @@ public class ULogReader extends BinaryLogReader {
     }
 
     /**
-     * Read next message from log
+     * Read and handle next message from log
      *
-     * @return log message
      * @throws IOException  on IO error
      * @throws EOFException on end of stream
      */
-    public void readMessage(MessageHandler handler) throws IOException {
+    private void readMessage(MessageHandler handler) throws IOException {
         while (true) {
             fillBuffer(headerSize);
             long pos = position();
@@ -296,9 +294,8 @@ public class ULogReader extends BinaryLogReader {
                 String structName = descr[1];
                 System.out.printf("ADD: %s:%s\n", name, structName);
                 StructParser struct = context.getStructs().get(structName);
-                Message message = new Message(name, struct, msgId);
-                messagesById.put(msgId, message);
-                messagesByName.put(name, message);
+                Topic topic = new Topic(name, struct, msgId);
+                topicByName.put(name, topic);
                 addFieldsToList(name, struct);
                 break;
             }
@@ -352,7 +349,7 @@ public class ULogReader extends BinaryLogReader {
 
     private void addFieldsToList(String path, AbstractParser value) {
         if (value instanceof FieldParser) {
-            fieldsList.put(path, ((FieldParser) value).type);
+            fieldsList.put(path, ((FieldParser) value).getType());
         } else if (value instanceof ArrayParser) {
             AbstractParser[] items = ((ArrayParser) value).getItems();
             for (int i = 0; i < items.length; i++) {
@@ -390,7 +387,7 @@ public class ULogReader extends BinaryLogReader {
         buffer.position(bp + msgSize);
     }
 
-    public String getString(ByteBuffer buffer, int len) {
+    private String getString(ByteBuffer buffer, int len) {
         byte[] strBuf = new byte[len];
         buffer.get(strBuf);
         String[] p = new String(strBuf, context.getCharset()).split("\0");

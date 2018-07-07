@@ -12,8 +12,8 @@ import java.nio.channels.FileChannel;
  */
 public abstract class BinaryLogReader implements LogReader {
     protected ByteBuffer buffer;
-    protected FileChannel channel = null;
-    protected long channelPosition = 0;
+    private FileChannel channel;
+    private long channelPosition = 0;
 
     public BinaryLogReader(String fileName) throws IOException {
         buffer = ByteBuffer.allocate(8192);
@@ -39,7 +39,7 @@ public abstract class BinaryLogReader implements LogReader {
         return n;
     }
 
-    public void fillBuffer(int required) throws IOException {
+    protected void fillBuffer(int required) throws IOException {
         if (buffer.remaining() < required) {
             buffer.compact();
             int n = channel.read(buffer);
@@ -51,11 +51,11 @@ public abstract class BinaryLogReader implements LogReader {
         }
     }
 
-    protected long position() throws IOException {
+    protected long position() {
         return channelPosition - buffer.remaining();
     }
 
-    protected int position(long pos) throws IOException {
+    protected void position(long pos) throws IOException {
         buffer.clear();
         channel.position(pos);
         channelPosition = pos;
@@ -65,6 +65,5 @@ public abstract class BinaryLogReader implements LogReader {
             throw new EOFException();
         }
         channelPosition += n;
-        return n;
     }
 }

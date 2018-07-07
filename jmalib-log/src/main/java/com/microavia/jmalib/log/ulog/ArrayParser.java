@@ -2,11 +2,11 @@ package com.microavia.jmalib.log.ulog;
 
 import java.nio.ByteBuffer;
 
-public class ArrayParser extends AbstractParser {
+class ArrayParser extends AbstractParser {
     private final LogParserContext context;
     private final AbstractParser[] items;
 
-    public ArrayParser(LogParserContext context, AbstractParser itemType, int arraySize) {
+    ArrayParser(LogParserContext context, AbstractParser itemType, int arraySize) {
         super(context);
         this.context = context;
         this.size = itemType.size() * arraySize;
@@ -17,11 +17,11 @@ public class ArrayParser extends AbstractParser {
         setOffset(0);
     }
 
-    public AbstractParser[] getItems() {
+    AbstractParser[] getItems() {
         return items;
     }
 
-    public AbstractParser get(int idx) {
+    AbstractParser get(int idx) {
         return items[idx];
     }
 

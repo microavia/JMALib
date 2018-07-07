@@ -1,7 +1,5 @@
 package com.microavia.jmalib.log;
 
-import com.microavia.jmalib.log.ulog.Message;
-
 import java.nio.ByteBuffer;
 
 public class Subscription {
