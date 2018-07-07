@@ -12,7 +12,7 @@ Log parsing library in a typical scenario has ~100x speed up compared to origina
 ```
 <dependency>
     <groupId>com.microavia</groupId>
-    <artifactId>jmavlib</artifactId>
+    <artifactId>jmalib</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
         

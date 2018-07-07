@@ -5,13 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class StructParser extends AbstractParser {
-    public final AbstractParser[] fields;
-    public final LinkedHashMap<String, AbstractParser> fieldsMap;
+    public final LinkedHashMap<String, AbstractParser> fields;
 
-    public StructParser(LogParserContext context, AbstractParser[] fields, LinkedHashMap<String, AbstractParser> fieldsMap) {
+    public StructParser(LogParserContext context, LinkedHashMap<String, AbstractParser> fields) {
         super(context);
         this.fields = fields;
-        this.fieldsMap = fieldsMap;
         setOffset(0);
     }
 
@@ -19,50 +17,42 @@ public class StructParser extends AbstractParser {
         super(context);
         if (formatStr.length() > 1) {
             String[] fieldDescrs = formatStr.split(";");
-            fields = new AbstractParser[fieldDescrs.length];
-            fieldsMap = new LinkedHashMap<>(fieldDescrs.length);
+            fields = new LinkedHashMap<>(fieldDescrs.length);
             for (int i = 0; i < fieldDescrs.length; i++) {
                 String fieldDescr = fieldDescrs[i];
                 String[] p = fieldDescr.split(" ");
                 String name = p[1];
                 AbstractParser field = AbstractParser.createFromFormatString(context, p[0]);
                 size += field.size();
-                fields[i] = field;
-                fieldsMap.put(name, field);
+                fields.put(name, field);
             }
         } else {
-            fields = new FieldParser[0];
-            fieldsMap = new LinkedHashMap<>();
+            fields = new LinkedHashMap<>(0);
         }
         setOffset(0);
     }
 
     public LinkedHashMap<String, AbstractParser> getFields() {
-        return fieldsMap;
+        return fields;
     }
 
     public AbstractParser get(String key) {
-        return fieldsMap.get(key);
+        return fields.get(key);
     }
 
     @Override
     public AbstractParser clone() {
-        AbstractParser[] fieldsClone = new AbstractParser[fields.length];
-        LinkedHashMap<String, AbstractParser> fieldsMapClone = new LinkedHashMap<>();
-        int i = 0;
-        for (Map.Entry<String, AbstractParser> e : fieldsMap.entrySet()) {
-            AbstractParser t = fields[i].clone();
-            fieldsClone[i] = t;
-            fieldsMapClone.put(e.getKey(), t);
-            ++i;
+        LinkedHashMap<String, AbstractParser> fieldsClone = new LinkedHashMap<>();
+        for (Map.Entry<String, AbstractParser> e : fields.entrySet()) {
+            fieldsClone.put(e.getKey(), e.getValue().clone());
         }
-        return new StructParser(context, fieldsClone, fieldsMapClone);
+        return new StructParser(context, fieldsClone);
     }
 
     @Override
     public void setOffset(int offset) {
         size = 0;
-        for (AbstractParser field : fields) {
+        for (AbstractParser field : fields.values()) {
             field.setOffset(offset);
             offset += field.size();
             size += field.size();
@@ -71,18 +61,18 @@ public class StructParser extends AbstractParser {
 
     @Override
     public Object parse(ByteBuffer buffer) {
-        Object[] data = new Object[fields.length];
-        for (int i = 0; i < fields.length; ++i) {
-            data[i] = fields[i].parse(buffer);
+        LinkedHashMap<String, Object> res = new LinkedHashMap<>(fields.size());
+        for (Map.Entry<String, AbstractParser> e : fields.entrySet()) {
+            res.put(e.getKey(), e.getValue().parse(buffer));
         }
-        return data;
+        return res;
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
-        for (Map.Entry<String, AbstractParser> e : fieldsMap.entrySet()) {
+        for (Map.Entry<String, AbstractParser> e : fields.entrySet()) {
             sb.append("    ");
             sb.append(e.getValue().toString());
             sb.append(" ");
