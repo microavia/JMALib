@@ -7,7 +7,7 @@ MicroAvia Java libraries.
 
 Based on deprecated [jMAVlib](https://github.com/DrTon/jMAVlib) project with some major improvements. Added Maven support.
 
-Log parser in a typical scenario has ~50x speed up compared to original jMAVlib parser.
+Log parser in a typical scenario has ~20x speed up compared to original jMAVlib parser.
 
 #### Using with Maven
 ```
