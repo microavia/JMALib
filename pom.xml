@@ -45,7 +45,7 @@
     <distributionManagement>
         <repository>
             <id>ssh-repository</id>
-            <url>scpexe://maven.microavia.com:maven</url>
+            <url>scpexe://maven.microavia.com:/var/www/maven</url>
         </repository>
     </distributionManagement>
 </project>
