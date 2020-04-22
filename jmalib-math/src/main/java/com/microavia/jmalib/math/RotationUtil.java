@@ -2,8 +2,7 @@ package com.microavia.jmalib.math;
 
 import java.util.Arrays;
 
-import static java.lang.Math.cos;
-import static java.lang.Math.sin;
+import static java.lang.Math.*;
 
 /**
  * User: ton Date: 02.06.13 Time: 20:20
@@ -21,6 +20,22 @@ public class RotationUtil {
                 sin(roll) * cos(pitch),
                 cos(roll) * cos(pitch)
         };
+    }
+
+    public static double[] quaternionByAngleAxis(double[] angleAxis) {
+        double a = sqrt(angleAxis[0] * angleAxis[0] + angleAxis[1] * angleAxis[1] + angleAxis[2] * angleAxis[2]);
+        if (a > 1.0e-10) {
+            double b = sin(a / 2) / a;
+            return new double[]{cos(a / 2), angleAxis[0] * b, angleAxis[1] * b, angleAxis[2] * b};
+        } else {
+            return new double[]{1, 0, 0, 0};
+        }
+    }
+
+    public static double[] quaternionByEulerAngles(double roll, double pitch, double yaw) {
+        double[] q = quaternionByAngleAxis(new double[]{0, 0, yaw});
+        q = quaternionMult(quaternionByAngleAxis(new double[]{0, pitch, 0}), q);
+        return quaternionMult(quaternionByAngleAxis(new double[]{roll, 0, 0}), q);
     }
 
     public static double[] rotationMatrixByQuaternion(double[] q) {
@@ -55,7 +70,7 @@ public class RotationUtil {
         return Arrays.copyOfRange(quaternionMult(quaternionMult(q, qV), qConj), 1, 4);
     }
 
-    private static double[] quaternionMult(double[] q1, double[] q2) {
+    public static double[] quaternionMult(double[] q1, double[] q2) {
         return new double[]{
                 q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2] - q1[3] * q2[3],
                 q1[0] * q2[1] + q1[1] * q2[0] + q1[2] * q2[3] - q1[3] * q2[2],

@@ -7,7 +7,7 @@
     <groupId>com.microavia</groupId>
     <artifactId>jmalib</artifactId>
     <packaging>pom</packaging>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
     <modules>
         <module>jmalib-log</module>
         <module>jmalib-math</module>
