@@ -299,7 +299,7 @@ public class ULogReader extends BinaryLogReader {
                         try {
                             struct = new StructParser(context, descr[1]);
                         } catch (FormatErrorException e) {
-                            errors.add(new FormatErrorException(pos, "Error parsing type definition", e));
+                            errors.add(new FormatErrorException(pos, String.format("Error parsing type definition: %s", e.toString()), e));
                             break;
                         }
                         context.getStructs().put(name, struct);
@@ -314,7 +314,7 @@ public class ULogReader extends BinaryLogReader {
                         try {
                             struct = new StructParser(context, descr[1]);
                         } catch (Exception e) {
-                            errors.add(new FormatErrorException(pos, "Error parsing struct", e));
+                            errors.add(new FormatErrorException(pos, String.format("Error parsing struct: %s", e.toString()), e));
                             break;
                         }
                         context.getStructs().put(name, struct);

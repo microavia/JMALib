@@ -28,6 +28,9 @@ abstract class AbstractParser implements ValueParser {
             // Array
             String[] q = formatStr.split("\\[");
             String typeString = q[0];
+            if (q[1].startsWith("]")) {
+                throw new FormatErrorException("Dynamic arrays not supported yet");
+            }
             int arraySize = Integer.parseInt(q[1].split("]")[0]);
             if (typeString.equals("char") || typeString.equals("byte")) {
                 // Array that parsed as field
