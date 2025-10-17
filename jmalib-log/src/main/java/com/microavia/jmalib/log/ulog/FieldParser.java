@@ -24,43 +24,53 @@ class FieldParser extends AbstractParser {
         int size;
         switch (typeString) {
             case "float":
+            case "float32":
                 valueParser = ByteBuffer::getFloat;
                 size = 4;
                 break;
             case "double":
+            case "float64":
                 valueParser = ByteBuffer::getDouble;
                 size = 8;
                 break;
             case "int8_t":
+            case "int8":
             case "bool":
                 valueParser = b -> (int) b.get();
                 size = 1;
                 break;
             case "uint8_t":
+            case "uint8":
                 valueParser = b -> b.get() & 0xFF;
                 size = 1;
                 break;
             case "int16_t":
+            case "int16":
                 valueParser = b -> (int) b.getShort();
                 size = 2;
                 break;
             case "uint16_t":
+            case "uint16":
                 valueParser = b -> b.getShort() & 0xFFFF;
                 size = 2;
                 break;
             case "int32_t":
+            case "int32":
                 valueParser = ByteBuffer::getInt;
                 size = 4;
                 break;
             case "uint32_t":
+            case "uint32":
                 valueParser = b -> b.getInt() & 0xFFFFFFFFL;
                 size = 4;
                 break;
             case "int64_t":
+            case "int64":
                 valueParser = ByteBuffer::getLong;
                 size = 8;
                 break;
             case "uint64_t":
+            case "uint64":
                 valueParser = ByteBuffer::getLong;
                 size = 8;
                 break;
