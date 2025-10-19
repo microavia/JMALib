@@ -1,22 +1,21 @@
 package com.microavia.jmalib.log.ulog;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
-class ArrayParser implements Parser {
+class VectorParser implements Parser {
     private final Parser itemParser;
-    private final int size;
 
-
-    ArrayParser(Parser itemParser, int size) {
+    VectorParser(Parser itemParser) {
         this.itemParser = itemParser;
-        this.size = size;
     }
 
     @Override
     public Object parse(ByteBuffer buffer) {
-        Object[] items = new Object[size];
+        int size = buffer.getInt();
+        ArrayList<Object> items = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
-            items[i] = itemParser.parse(buffer);
+            items.add(itemParser.parse(buffer));
         }
         return items;
     }

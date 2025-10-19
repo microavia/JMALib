@@ -2,7 +2,9 @@ package com.microavia.jmalib.log.ulog;
 
 import com.microavia.jmalib.log.BinaryLogReader;
 import com.microavia.jmalib.log.FormatErrorException;
-import com.microavia.jmalib.log.Subscription;
+import com.microavia.jmalib.log.ulog.model.ArrayType;
+import com.microavia.jmalib.log.ulog.model.StructType;
+import com.microavia.jmalib.log.ulog.model.Type;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -27,7 +29,7 @@ public class ULogReader extends BinaryLogReader {
     private Map<String, Topic> topicByName = new HashMap<>();
     private Map<String, String> fieldsList = null;
     private Map<Integer, List<Subscription>> subscriptions = new HashMap<>();
-    private Set<Subscription> updatedSubscriptions = new HashSet<>();
+    private ArrayList<Subscription> updatedSubscriptions = new ArrayList<>();
     private long sizeUpdates = -1;
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
@@ -39,33 +41,11 @@ public class ULogReader extends BinaryLogReader {
     private int logVersion = 0;
     private int headerSize = 4;
     private int msgDataTimestampOffset = 3;
-    private LogParserContext context = new LogParserContext();
+    private Codec codec = new Codec();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
         updateStatistics();
-    }
-
-    public static void main(String[] args) throws Exception {
-        ULogReader reader = new ULogReader("test_long_v1.ulg");
-        reader.addSubscription("ATTITUDE_POSITION.alt_baro");
-        reader.seek(0);
-        long tStart = System.currentTimeMillis();
-        try {
-            while (true) {
-                long t = reader.readUpdate();
-                for (Subscription s : reader.getUpdatedSubscriptions()) {
-                    System.out.println(t + " " + s.getPath() + " " + s.getValue());
-                }
-            }
-        } catch (EOFException ignored) {
-        }
-        long tEnd = System.currentTimeMillis();
-        for (Exception e : reader.getErrors()) {
-            e.printStackTrace();
-        }
-        System.out.println(tEnd - tStart);
-        reader.close();
     }
 
     @Override
@@ -144,47 +124,16 @@ public class ULogReader extends BinaryLogReader {
         seek(0);
     }
 
-    public Subscription addSubscription(String path) {
-        String[] parts = path.split("\\.");
-        Topic msg = null;
-        int multiIdFilter = -1;
-        AbstractParser parser = null;
-        for (String p : parts) {
-            if (msg == null) {
-                String[] pp = p.split("\\[");
-                if (pp.length > 1) {
-                    multiIdFilter = Integer.parseInt(pp[1].split("]")[0]);
-                }
-                msg = topicByName.get(pp[0]);
-                parser = msg.getStruct();
-            } else {
-                if (parser instanceof StructParser) {
-                    String[] pp = p.split("\\[");
-                    if (pp.length > 1) {
-                        parser = ((StructParser) parser).get(pp[0]);
-                        try {
-                            int idx = Integer.parseInt(pp[1].split("]")[0]);
-                            if (parser instanceof ArrayParser) {
-                                parser = ((ArrayParser) parser).get(idx);
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    } else {
-                        parser = ((StructParser) parser).get(p);
-                    }
-                } else {
-                    break;
-                }
-            }
+    public Subscription addSubscription(String topicName) {
+        Topic topic = topicByName.get(topicName);
+        if (topic == null) {
+            throw new SubscriptionException("Topic not found: " + topicName);
         }
-        if (msg != null && parser != null) {
-            Subscription subscription = new Subscription(path, parser, multiIdFilter);
-            subscriptions.putIfAbsent(msg.getId(), new ArrayList<>());
-            subscriptions.get(msg.getId()).add(subscription);
-            return subscription;
-        } else {
-            return new Subscription(path, null, -1);
-        }
+        Type topicType = codec.getTypeDescription(topic.getTypeName());
+        Subscription sub = new Subscription(codec, topicName, topicType, -1);
+        subscriptions.putIfAbsent(topic.getId(), new ArrayList<>());
+        subscriptions.get(topic.getId()).add(sub);
+        return sub;
     }
 
     @Override
@@ -195,6 +144,9 @@ public class ULogReader extends BinaryLogReader {
 
     @Override
     public long readUpdate() throws IOException {
+        for (Subscription sub : updatedSubscriptions) {
+            sub.clearUpdated();
+        }
         updatedSubscriptions.clear();
         timeLast = Long.MIN_VALUE;
         do {
@@ -204,7 +156,7 @@ public class ULogReader extends BinaryLogReader {
     }
 
     @Override
-    public Set<Subscription> getUpdatedSubscriptions() {
+    public List<Subscription> getUpdatedSubscriptions() {
         return updatedSubscriptions;
     }
 
@@ -267,7 +219,7 @@ public class ULogReader extends BinaryLogReader {
             try {
                 handler.handleMessage(pos, msgType, msgSize);
             } catch (Exception e) {
-                errors.add(new FormatErrorException(pos, "Error parsing message type: " + msgType, e));
+                errors.add(new FormatErrorException(pos, "Error parsing message typeName: " + msgType, e));
             }
             return;
         }
@@ -292,33 +244,22 @@ public class ULogReader extends BinaryLogReader {
                 if (logVersion <= 1) {
                     int msgId = buffer.get() & 0xFF;
                     int formatLen = buffer.getShort() & 0xFFFF;
+                    String descrStr = getString(buffer, formatLen);
                     String[] descr = getString(buffer, formatLen).split(":");
-                    String name = descr[0];
-                    if (descr.length > 1) {
-                        StructParser struct = null;
-                        try {
-                            struct = new StructParser(context, descr[1]);
-                        } catch (FormatErrorException e) {
-                            errors.add(new FormatErrorException(pos, String.format("Error parsing type definition: %s", e.toString()), e));
-                            break;
-                        }
-                        context.getStructs().put(name, struct);
-                        topicByName.put(name, new Topic(name, struct, msgId));
-                        addFieldsToList(name, struct);
+                    if (descr.length <= 1) {
+                        errors.add(new FormatErrorException(pos, String.format("Invalid struct description: %s", descrStr)));
+                        break;
                     }
+                    codec.addStructType(descr[0], descr[1]);
                 } else {
-                    String[] descr = getString(buffer, msgSize).split(":");
-                    String name = descr[0];
-                    if (descr.length > 1) {
-                        StructParser struct = null;
-                        try {
-                            struct = new StructParser(context, descr[1]);
-                        } catch (Exception e) {
-                            errors.add(new FormatErrorException(pos, String.format("Error parsing struct: %s", e.toString()), e));
-                            break;
-                        }
-                        context.getStructs().put(name, struct);
+                    String descrStr = getString(buffer, msgSize);
+                    String[] descr = descrStr.split(":");
+                    if (descr.length <= 1) {
+                        errors.add(new FormatErrorException(pos, String.format("Invalid struct description: %s", descrStr)));
+                        break;
                     }
+
+                    codec.addStructType(descr[0], descr[1]);
                 }
                 break;
             }
@@ -326,38 +267,39 @@ public class ULogReader extends BinaryLogReader {
                 int msgId = buffer.getShort() & 0xFFFF;
                 String[] descr = getString(buffer, msgSize - 2).split(":");
                 String name = descr[0];
-                String structName = descr[1];
-                StructParser struct = context.getStructs().get(structName);
-                Topic topic = new Topic(name, struct, msgId);
+                String typeName = descr[1];
+                Type typeDescr = codec.getTypeDescription(typeName);
+                if (typeDescr == null) {
+                    errors.add(new FormatErrorException(pos, String.format("Unknown topic struct typeName: %s", typeName)));
+                    break;
+                }
+                Topic topic = new Topic(name, typeDescr.getTypeName(), msgId);
                 topicByName.put(name, topic);
-                addFieldsToList(name, struct);
+                addFieldsToList(name, typeDescr);
                 break;
             }
             case MESSAGE_TYPE_INFO: {
                 int keyLen = buffer.get() & 0xFF;
                 String[] keyDescr = getString(buffer, keyLen).split(" ");
                 String key = keyDescr[1];
-                AbstractParser field = null;
-                try {
-                    field = AbstractParser.createFromFormatString(context, keyDescr[0]);
-                } catch (FormatErrorException e) {
-                    errors.add(new FormatErrorException(pos, "Error parsing info", e));
+                Parser parser = codec.getValueParser(keyDescr[0]);
+                if (parser == null) {
+                    errors.add(new FormatErrorException(pos, "Error parsing info: " + key));
                     break;
                 }
-                Object value = field.parse(buffer);
-                buffer.position(buffer.position() + field.size());
+                Object value = parser.parse(buffer);
                 switch (key) {
                     case "sys_name":
-                        systemName = (String) value;
+                        systemName = codec.objectToString(value);
                         break;
                     case "sys_config":
-                        systemConfig = (String) value;
+                        systemConfig = codec.objectToString(value);
                         break;
                     case "ver_hw":
-                        version.put("HW", value);
+                        version.put("HW", codec.objectToString(value));
                         break;
                     case "ver_sw":
-                        version.put("FW", value);
+                        version.put("FW", codec.objectToString(value));
                         break;
                     case "time_ref_utc":
                         utcTimeReference = ((Number) value).longValue();
@@ -369,21 +311,18 @@ public class ULogReader extends BinaryLogReader {
                 int keyLen = buffer.get() & 0xFF;
                 String[] keyDescr = getString(buffer, keyLen).split(" ");
                 String key = keyDescr[1];
-                AbstractParser field = null;
-                try {
-                    field = AbstractParser.createFromFormatString(context, keyDescr[0]);
-                } catch (FormatErrorException e) {
-                    errors.add(new FormatErrorException(pos, "Error parsing parameter", e));
+                Parser parser = codec.getValueParser(keyDescr[0]);
+                if (parser == null) {
+                    errors.add(new FormatErrorException(pos, "Error parsing parameter: " + key));
                     break;
                 }
-                Object value = field.parse(buffer);
-                buffer.position(buffer.position() + field.size());
+                Object value = parser.parse(buffer);
                 parameters.put(key, value);
                 break;
             }
             default:
                 buffer.position(buffer.position() + msgSize);
-                errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
+                errors.add(new FormatErrorException(pos, "Unknown message typeName: " + msgType));
                 break;
         }
         int sizeParsed = (int) (position() - pos - headerSize);
@@ -393,20 +332,27 @@ public class ULogReader extends BinaryLogReader {
         }
     }
 
-    private void addFieldsToList(String path, AbstractParser value) {
-        if (value instanceof FieldParser) {
-            fieldsList.put(path, ((FieldParser) value).getType());
-        } else if (value instanceof ArrayParser) {
-            AbstractParser[] items = ((ArrayParser) value).getItems();
-            for (int i = 0; i < items.length; i++) {
-                AbstractParser item = items[i];
-                addFieldsToList(String.format("%s[%s]", path, i), item);
-            }
-        } else if (value instanceof StructParser) {
-            for (Map.Entry<String, AbstractParser> e : ((StructParser) value).getFields().entrySet()) {
-                if (!e.getKey().startsWith("_")) {
-                    addFieldsToList(String.format("%s.%s", path, e.getKey()), e.getValue());
+    private void addFieldsToList(String path, Type typeDescr) {
+        switch (typeDescr.getTypeClass()) {
+            case STRUCT: {
+                for (var field : ((StructType) typeDescr).getFields()) {
+                    if (!field.name().startsWith("_")) {
+                        addFieldsToList(String.format("%s.%s", path, field.name()), codec.getTypeDescription(field.typeName()));
+                    }
                 }
+                break;
+            }
+            case ARRAY: {
+                var arrDescr = ((ArrayType) typeDescr);
+                int size = arrDescr.getSize();
+                for (int i = 0; i < size; i++) {
+                    addFieldsToList(String.format("%s[%s]", path, i), codec.getTypeDescription(arrDescr.getElementType()));
+                }
+                break;
+            }
+            default: {
+                fieldsList.put(path, typeDescr.getTypeName());
+                break;
             }
         }
     }
@@ -427,7 +373,7 @@ public class ULogReader extends BinaryLogReader {
                 }
             }
         } else {
-            errors.add(new FormatErrorException("Unexpected message type: " + msgType));
+            errors.add(new FormatErrorException("Unexpected message typeName: " + msgType));
         }
         buffer.position(bp + msgSize);
     }
@@ -435,7 +381,7 @@ public class ULogReader extends BinaryLogReader {
     private String getString(ByteBuffer buffer, int len) {
         byte[] strBuf = new byte[len];
         buffer.get(strBuf);
-        String[] p = new String(strBuf, context.getCharset()).split("\0");
+        String[] p = new String(strBuf, codec.getCharset()).split("\0");
         return p.length > 0 ? p[0] : "";
     }
 

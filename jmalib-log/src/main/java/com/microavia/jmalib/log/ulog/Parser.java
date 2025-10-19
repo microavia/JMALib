@@ -1,7 +1,7 @@
-package com.microavia.jmalib.log;
+package com.microavia.jmalib.log.ulog;
 
 import java.nio.ByteBuffer;
 
-public interface ValueParser {
+interface Parser {
     Object parse(ByteBuffer buffer);
 }

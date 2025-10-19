@@ -2,12 +2,12 @@ package com.microavia.jmalib.log.ulog;
 
 class Topic {
     private final String name;
-    private final StructParser struct;
+    private final String typeName;
     private final int id;
 
-    Topic(String name, StructParser struct, int id) {
+    Topic(String name, String structType, int id) {
         this.name = name;
-        this.struct = struct;
+        this.typeName = structType;
         this.id = id;
     }
 
@@ -15,8 +15,8 @@ class Topic {
         return name;
     }
 
-    StructParser getStruct() {
-        return struct;
+    String getTypeName() {
+        return typeName;
     }
 
     int getId() {

@@ -1,5 +1,7 @@
 package com.microavia.jmalib.log;
 
+import com.microavia.jmalib.log.ulog.Subscription;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +46,7 @@ public interface LogReader {
     /**
      * Get set of updated subscriptions, overwrited on each call of readUpdate().
      */
-    public Set<Subscription> getUpdatedSubscriptions();
+    public List<Subscription> getUpdatedSubscriptions();
 
     /**
      * Get map of field - format.
