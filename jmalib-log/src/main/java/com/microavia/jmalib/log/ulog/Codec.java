@@ -73,6 +73,8 @@ public class Codec {
     public Parser getValueParser(Type descr) {
         return switch (descr.getTypeClass()) {
             case SCALAR -> getScalarParser(descr.getTypeName());
+            case ENUM -> getScalarParser(((EnumType) descr).getBaseType());
+            case BITSET -> getScalarParser(((BitsetType) descr).getBaseType());
             case BYTES -> new BytesParser();
             case STRING -> new StringParser(this);
             case ARRAY -> {
