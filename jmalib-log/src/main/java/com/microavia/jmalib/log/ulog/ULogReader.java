@@ -275,7 +275,7 @@ public class ULogReader extends BinaryLogReader {
                 }
                 Topic topic = new Topic(name, typeDescr.getTypeName(), msgId);
                 topicByName.put(name, topic);
-                addFieldsToList(name, typeDescr);
+                addFieldsToList(pos, name, typeDescr);
                 break;
             }
             case MESSAGE_TYPE_INFO: {
@@ -332,12 +332,17 @@ public class ULogReader extends BinaryLogReader {
         }
     }
 
-    private void addFieldsToList(String path, Type typeDescr) {
+    private void addFieldsToList(long pos, String path, Type typeDescr) {
         switch (typeDescr.getTypeClass()) {
             case STRUCT: {
                 for (var field : ((StructType) typeDescr).getFields()) {
                     if (!field.name().startsWith("_")) {
-                        addFieldsToList(String.format("%s.%s", path, field.name()), codec.getTypeDescription(field.typeName()));
+                        var type = codec.getTypeDescription(field.typeName());
+                        if (type == null) {
+                            errors.add(new FormatErrorException(pos, "Invalid type of field " + field.typeName() + ": " + field.name()));
+                            break;
+                        }
+                        addFieldsToList(pos, String.format("%s.%s", path, field.name()), type);
                     }
                 }
                 break;
@@ -346,7 +351,7 @@ public class ULogReader extends BinaryLogReader {
                 var arrDescr = ((ArrayType) typeDescr);
                 int size = arrDescr.getSize();
                 for (int i = 0; i < size; i++) {
-                    addFieldsToList(String.format("%s[%s]", path, i), codec.getTypeDescription(arrDescr.getElementType()));
+                    addFieldsToList(pos, String.format("%s[%s]", path, i), codec.getTypeDescription(arrDescr.getElementType()));
                 }
                 break;
             }
