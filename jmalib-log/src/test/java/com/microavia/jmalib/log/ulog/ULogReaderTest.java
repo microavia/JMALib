@@ -10,6 +10,9 @@ class ULogReaderTest {
     @Test
     void reader() throws FormatErrorException, IOException {
         ULogReader reader = new ULogReader("test.ulg");
+        for (var err : reader.getErrors()) {
+            System.out.println(err.toString());
+        }
         var sub = reader.addSubscription("ATTITUDE_POSITION");
         String altElPath = "alt_el";
         String altBaroPath = "alt_baro";
