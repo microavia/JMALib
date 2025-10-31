@@ -26,22 +26,22 @@ public class ULogReader extends BinaryLogReader {
     private String systemName = "";
     private String systemConfig = "";
     private long dataStart = 0;
-    private Map<String, Topic> topicByName = new HashMap<>();
+    private final Map<String, Topic> topicByName = new HashMap<>();
     private Map<String, String> fieldsList = null;
-    private Map<Integer, List<Subscription>> subscriptions = new HashMap<>();
-    private ArrayList<Subscription> updatedSubscriptions = new ArrayList<>();
+    private final Map<Integer, Subscription> subscriptions = new HashMap<>();
+    private final ArrayList<Subscription> updatedSubscriptions = new ArrayList<>();
     private long sizeUpdates = -1;
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
     private long timeLast = Long.MIN_VALUE;
     private long utcTimeReference = -1;
-    private Map<String, Object> version = new HashMap<>();
-    private Map<String, Object> parameters = new HashMap<>();
-    private List<Exception> errors = new ArrayList<>();
+    private final Map<String, Object> version = new HashMap<>();
+    private final Map<String, Object> parameters = new HashMap<>();
+    private final List<Exception> errors = new ArrayList<>();
     private int logVersion = 0;
     private int headerSize = 4;
     private int msgDataTimestampOffset = 3;
-    private Codec codec = new Codec();
+    private final Codec codec = new Codec();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
@@ -130,9 +130,11 @@ public class ULogReader extends BinaryLogReader {
             throw new SubscriptionException("Topic not found: " + topicName);
         }
         Type topicType = codec.getTypeDescription(topic.getTypeName());
-        Subscription sub = new Subscription(codec, topicName, topicType, -1);
-        subscriptions.putIfAbsent(topic.getId(), new ArrayList<>());
-        subscriptions.get(topic.getId()).add(sub);
+        var sub = subscriptions.get(topic.getId());
+        if (sub == null) {
+            sub = new Subscription(codec, topicName, topicType);
+            subscriptions.put(topic.getId(), sub);
+        }
         return sub;
     }
 
@@ -366,15 +368,13 @@ public class ULogReader extends BinaryLogReader {
         int bp = buffer.position();
         if (msgType == MESSAGE_TYPE_DATA) {
             int msgId = logVersion >= 2 ? (buffer.getShort() & 0xFFFF) : (buffer.get() & 0xFF);
-            List<Subscription> subs = subscriptions.get(msgId);
-            if (subs != null) {
+            Subscription sub = subscriptions.get(msgId);
+            if (sub != null) {
                 int multiId = buffer.get() & 0xFF;
                 long timestamp = buffer.getLong();
-                for (Subscription sub : subs) {
-                    if (sub.update(buffer, multiId)) {
-                        updatedSubscriptions.add(sub);
-                        timeLast = timestamp;
-                    }
+                if (sub.update(buffer, multiId)) {
+                    updatedSubscriptions.add(sub);
+                    timeLast = timestamp;
                 }
             }
         } else {

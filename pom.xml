@@ -7,7 +7,7 @@
     <groupId>com.microavia</groupId>
     <artifactId>jmalib</artifactId>
     <packaging>pom</packaging>
-    <version>0.2.1</version>
+    <version>0.2.2</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

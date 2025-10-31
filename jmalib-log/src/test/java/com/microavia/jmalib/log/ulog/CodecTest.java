@@ -44,7 +44,7 @@ class CodecTest {
     void getter() {
         Codec codec = createTestCodec();
         var fooType = codec.getTypeDescription("foo_struct");
-        var sub = new Subscription(codec, "FOO_TOPIC", fooType, -1);
+        var sub = new Subscription(codec, "FOO_TOPIC", fooType);
         var aGetter = sub.createGetter("bar.a");
         var arrGetter = sub.createGetter("arr[0]");
         var vecGetter = sub.createGetter("vec[1]");
@@ -56,7 +56,7 @@ class CodecTest {
                 new Object[]{3, 4, 5}, // vec
                 100 // i64
         };
-        sub.update(fooObj);
+        sub.update(fooObj, -1);
         assertEquals(123, aGetter.get());
         assertEquals(1, arrGetter.get());
         assertEquals(4, vecGetter.get());

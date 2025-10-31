@@ -23,9 +23,8 @@ class ULogReaderTest {
         try {
             while (true) {
                 long t = reader.readUpdate();
-                if (sub.isUpdated()) {
-                    var val = sub.getValue();
-                    System.out.printf("%d alt_el=%f alt_baro=%f%n", t, altElGetter.get(), altBaroGetter.get());
+                if (altElGetter.isUpdated() || altBaroGetter.isUpdated()) {
+                    System.out.printf("%d alt_el=%s alt_baro=%s%n", t, altElGetter.get(), altBaroGetter.get());
                 }
             }
         } catch (EOFException ignored) {

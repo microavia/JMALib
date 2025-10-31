@@ -5,7 +5,6 @@ import com.microavia.jmalib.log.ulog.Subscription;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * User: ton Date: 03.06.13 Time: 17:45
@@ -24,12 +23,12 @@ public interface LogReader {
     boolean seek(long time) throws IOException, FormatErrorException;
 
     /**
-     * Add subscription to field of message.
+     * Add subscription to topic. If subscription to the topic already exists, return existing one.
      *
-     * @param path path to field or object to subscribe, can be whole message
+     * @param topicName topic name (without multiId)
      * @return subscription object
      */
-    Subscription addSubscription(String path);
+    Subscription addSubscription(String topicName);
 
     /**
      * Remove all subscriptions.
@@ -46,7 +45,7 @@ public interface LogReader {
     /**
      * Get set of updated subscriptions, overwrited on each call of readUpdate().
      */
-    public List<Subscription> getUpdatedSubscriptions();
+    List<Subscription> getUpdatedSubscriptions();
 
     /**
      * Get map of field - format.
