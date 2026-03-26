@@ -243,24 +243,46 @@ public class ULogReader extends BinaryLogReader {
                 break;
             }
             case MESSAGE_TYPE_STRUCT: {
-                if (logVersion <= 1) {
+                if (logVersion >= 3) {
+                    // v3+: payload is "name:schema" where schema is either JSON or old plain-text (backward-compatibility)
+                    String payload = getString(buffer, msgSize);
+                    int colonIdx = payload.indexOf(':');
+                    if (colonIdx < 0) {
+                        errors.add(new FormatErrorException(pos, "Invalid struct message, missing ':': " + payload));
+                        break;
+                    }
+                    String name   = payload.substring(0, colonIdx);
+                    String schema = payload.substring(colonIdx + 1);
+                    try {
+                        if (schema.startsWith("{")) {
+                            // JSON schema (normal v3 types)
+                            codec.addTypeFromJson(schema);
+                        } else {
+                            // Old plain-text schema — used for perf structs even in v3 logs
+                            codec.addStructType(name, schema);
+                        }
+                    } catch (RuntimeException e) {
+                        errors.add(new FormatErrorException(pos, "Error parsing type schema: " + payload, e));
+                    }
+                } else if (logVersion <= 1) {
+                    // v1: struct message includes a leading msgId and explicit format length
                     int msgId = buffer.get() & 0xFF;
                     int formatLen = buffer.getShort() & 0xFFFF;
                     String descrStr = getString(buffer, formatLen);
-                    String[] descr = getString(buffer, formatLen).split(":");
+                    String[] descr = descrStr.split(":");
                     if (descr.length <= 1) {
                         errors.add(new FormatErrorException(pos, String.format("Invalid struct description: %s", descrStr)));
                         break;
                     }
                     codec.addStructType(descr[0], descr[1]);
                 } else {
+                    // v2: the whole message payload is "typeName:fields"
                     String descrStr = getString(buffer, msgSize);
                     String[] descr = descrStr.split(":");
                     if (descr.length <= 1) {
                         errors.add(new FormatErrorException(pos, String.format("Invalid struct description: %s", descrStr)));
                         break;
                     }
-
                     codec.addStructType(descr[0], descr[1]);
                 }
                 break;

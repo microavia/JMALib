@@ -1,6 +1,8 @@
 package com.microavia.jmalib.log.ulog;
 
 import com.microavia.jmalib.log.ulog.model.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -15,6 +17,9 @@ public class Codec {
         return charset;
     }
 
+    // -------------------------------------------------------------------------
+    // v1/v2: plain-text struct definition  "typeName:field1Type field1Name;..."
+    // -------------------------------------------------------------------------
     public void addStructType(String typeName, String fieldsListStr) {
         var fieldsStr = fieldsListStr.split(";");
         var fields = new StructType.Field[fieldsStr.length];
@@ -35,6 +40,89 @@ public class Codec {
         }
         StructType structType = new StructType(typeName, fields);
         typeDescriptions.put(typeName, structType);
+    }
+
+    // -------------------------------------------------------------------------
+    // v3+: JSON schema definition
+    //
+    // Supported type_class values: "struct", "enum"
+    //
+    // Struct example:
+    //   {"type":"pkg/MyStruct","type_class":"struct",
+    //    "fields":[{"name":"min","type":"uint32","comment":null}, ...],
+    //    "size":12}
+    //
+    // Enum example:
+    //   {"type":"pkg/MySeverity","type_class":"enum","base_type":"uint8",
+    //    "comment":null,
+    //    "values":[{"name":"error","value":0,"comment":null}, ...],
+    //    "size":1}
+    // -------------------------------------------------------------------------
+    public void addTypeFromJson(String json) {
+        JSONObject root = new JSONObject(json);
+
+        String typeName  = root.getString("type");
+        String typeClass = root.getString("type_class");
+
+        switch (typeClass) {
+            case "struct" -> addStructTypeFromJson(typeName, root);
+            case "enum"   -> addEnumTypeFromJson(typeName, root);
+            case "bitset" -> addBitsetTypeFromJson(typeName, root);
+            default       -> throw new RuntimeException("Unsupported type_class in JSON schema: " + typeClass);
+        }
+    }
+
+    private void addStructTypeFromJson(String typeName, JSONObject root) {
+        JSONArray fieldsNode = root.getJSONArray("fields");
+        var fields = new StructType.Field[fieldsNode.length()];
+        for (int i = 0; i < fieldsNode.length(); i++) {
+            JSONObject f = fieldsNode.getJSONObject(i);
+            String fieldName     = f.getString("name");
+            String fieldTypeName = f.getString("type");
+            // Normalize built-in type names (e.g. "uint32_t" → "uint32")
+            Type builtIn = getBuildInTypeDescription(fieldTypeName);
+            if (builtIn != null) {
+                fieldTypeName = builtIn.getTypeName();
+            }
+            fields[i] = new StructType.Field(fieldName, fieldTypeName);
+        }
+        typeDescriptions.put(typeName, new StructType(typeName, fields));
+    }
+
+    private void addEnumTypeFromJson(String typeName, JSONObject root) {
+        String baseType = root.getString("base_type");
+        // size may be null for variable-length types — not needed for parsing
+        int size = root.isNull("size") ? 0 : root.getInt("size");
+        JSONArray valuesNode = root.getJSONArray("values");
+        var values = new EnumType.Value[valuesNode.length()];
+        for (int i = 0; i < valuesNode.length(); i++) {
+            JSONObject v = valuesNode.getJSONObject(i);
+            values[i] = new EnumType.Value(v.getString("name"), parseIntValue(v, "value"));
+        }
+        typeDescriptions.put(typeName, new EnumType(typeName, baseType, size, values));
+    }
+
+    private void addBitsetTypeFromJson(String typeName, JSONObject root) {
+        String baseType = root.getString("base_type");
+        int size = root.isNull("size") ? 0 : root.getInt("size");
+        JSONArray bitsNode = root.getJSONArray("bits");
+        var bits = new BitsetType.Bit[bitsNode.length()];
+        for (int i = 0; i < bitsNode.length(); i++) {
+            JSONObject b = bitsNode.getJSONObject(i);
+            bits[i] = new BitsetType.Bit(b.getString("name"), b.getInt("offset"));
+        }
+        typeDescriptions.put(typeName, new BitsetType(typeName, baseType, size, bits));
+    }
+
+    /**
+     * Parse an integer value that may be a decimal int or a hex string like "0x0A".
+     */
+    private static int parseIntValue(JSONObject obj, String key) {
+        Object val = obj.get(key);
+        if (val instanceof String s) {
+            return Integer.decode(s); // handles "0x00", "0xFF", etc.
+        }
+        return obj.getInt(key);
     }
 
     public Type getTypeDescription(String typeName) {
